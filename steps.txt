@@ -1,0 +1,16 @@
+First we create the virtual environment
+python3 -m venv ragenv
+connection
+source ragenv/bin/activate
+
+install the different Lib
+pip install django
+pip install langchain
+pip install sentence-transformers
+pip install faiss-cpu
+pip install pypdf
+
+
+We then create the Django project
+git init
+git remote add origin
