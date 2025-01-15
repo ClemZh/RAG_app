@@ -14,3 +14,26 @@ pip install pypdf
 We then create the Django project
 git init
 git remote add origin
+git add .
+git commit -m "first commit"
+git branch -M main
+git push -u origin main
+
+
+We will be implementing the functionnality in views.py
+We want to implement rag system so we need
+-load of the document
+-chunking and embedding of the document in a database
+-embedding of the question
+-initialize the llm
+
+We will be using tinyllama here becuase of hardware limitation. context length is 2048 so we will be chunking the pdf in consequence
+For embedding i will be using minilm for lightweight
+
+
+We then creates the url to call the functions in backend 
+We try the app
+python3 manage.py runserver
+Then we try running this:
+http://127.0.0.1:8000/ask/?question=What%20is%20this%20document%20about?&path_to_pdf=/home/zclem/Documents/Personal_Project/RAG_django_app/RAG_project/aws-overview.pdf
+absolute path of the doc
