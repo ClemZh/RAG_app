@@ -1,14 +1,45 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>RAG App</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG PDF Q&A</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
-    <h1>Ask a Question</h1>
-    <form method="GET" action="/ask/">
-        <label for="question">Question:</label>
-        <input type="text" id="question" name="question">
-        <button type="submit">Ask</button>
-    </form>
+    <div class="container mt-5">
+        <h1 class="text-center">Retrieval-Augmented Generation - PDF Q&A</h1>
+        <form id="qa-form" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="pdf-file" class="form-label">Upload PDF Document</label>
+                <input class="form-control" type="file" id="pdf-file" name="pdf">
+            </div>
+            <div class="mb-3">
+                <label for="question" class="form-label">Enter Your Question</label>
+                <input class="form-control" type="text" id="question" name="question" placeholder="Ask your question...">
+            </div>
+            <button type="button" class="btn btn-primary" onclick="askQuestion()">Ask</button>
+        </form>
+        <div class="mt-5" id="answer-section" style="display: none;">
+            <h3>Answer:</h3>
+            <p id="answer"></p>
+        </div>
+    </div>
+
+    <script>
+        async function askQuestion() {
+            const form = document.getElementById('qa-form');
+            const formData = new FormData(form);
+
+            const response = await fetch('/ask/', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            document.getElementById('answer-section').style.display = 'block';
+            document.getElementById('answer').innerText = result.answer || 'No answer found.';
+        }
+    </script>
 </body>
 </html>

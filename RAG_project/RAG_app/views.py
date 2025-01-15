@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 
 from langchain.vectorstores import FAISS
 from langchain.document_loaders import PyPDFLoader
@@ -8,8 +9,14 @@ from langchain.llms.ollama import Ollama
 from langchain.embeddings import SentenceTransformerEmbeddings
 from langchain.chains import RetrievalQA
 
+import os
 # Create your views here.
 
+# Serve the frontend template
+def index(request):
+    return render(request, 'index.html')
+
+# Disable CSRF for simplicity (for POST requests)
 
 def loading_and_embeddings(path_to_pdf):
     """_summary_
@@ -36,29 +43,64 @@ def loading_and_embeddings(path_to_pdf):
 
 
 
-def handle_question(request):
-    """_summary_
+# def handle_question(request):
+#     """_summary_
 
-    Args:
-        request (request): the request that we are getting from the user
+#     Args:
+#         request (request): the request that we are getting from the user
 
-    Returns:
-        JsonResponse: the response that we will be sending back to the user
-    """
-    question = request.GET.get("question")
-    if not question:
-        return JsonResponse({'error': 'Please provide a question'}, status=400)
+#     Returns:
+#         JsonResponse: the response that we will be sending back to the user
+#     """
+#     question = request.GET.get("question")
+#     if not question:
+#         return JsonResponse({'error': 'Please provide a question'}, status=400)
     
-    path_to_pdf = request.GET.get("path_to_pdf")
-    vector_store = loading_and_embeddings(path_to_pdf)
-    retriever = vector_store.as_retriever()
-    qa_chain = RetrievalQA.from_chain_type(
-        llm=Ollama(model="tinyllama"),
-        retriever=retriever,
-        chain_type="stuff"
-    )
-    answer = qa_chain.run(question)
+#     path_to_pdf = request.GET.get("path_to_pdf")
+#     vector_store = loading_and_embeddings(path_to_pdf)
+#     retriever = vector_store.as_retriever()
+#     qa_chain = RetrievalQA.from_chain_type(
+#         llm=Ollama(model="tinyllama"),
+#         retriever=retriever,
+#         chain_type="stuff"
+#     )
+#     answer = qa_chain.run(question)
 
 
-    return JsonResponse({"answer": answer})
+#     return JsonResponse({"answer": answer})
 
+@csrf_exempt
+def handle_question(request):
+    if request.method == 'POST':
+        # Get the uploaded file and question
+        pdf_file = request.FILES.get('pdf')
+        question = request.POST.get('question')
+
+        if not pdf_file or not question:
+            return JsonResponse({'error': 'Please provide both a PDF and a question'}, status=400)
+
+        # Save the uploaded PDF to a temporary location
+        pdf_path = f'/tmp/{pdf_file.name}'
+        with open(pdf_path, 'wb') as f:
+            f.write(pdf_file.read())
+
+        # Load and embed the document
+        vector_store = loading_and_embeddings(pdf_path)
+
+        # Create retriever and QA chain
+        retriever = vector_store.as_retriever()
+        qa_chain = RetrievalQA.from_chain_type(
+            llm=Ollama(model="tinyllama"),
+            retriever=retriever,
+            chain_type="stuff"
+        )
+
+        # Get the answer
+        answer = qa_chain.run(question)
+
+        # Clean up the temporary file
+        os.remove(pdf_path)
+
+        return JsonResponse({"answer": answer})
+
+    return JsonResponse({'error': 'Invalid request method'}, status=405)
