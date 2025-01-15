@@ -37,3 +37,14 @@ python3 manage.py runserver
 Then we try running this:
 http://127.0.0.1:8000/ask/?question=What%20is%20this%20document%20about?&path_to_pdf=/home/zclem/Documents/Personal_Project/RAG_django_app/RAG_project/aws-overview.pdf
 absolute path of the doc
+
+
+We return to the root of the project to create the Dockerfile
+We first create the requirements
+pip freeze > requirements.txt
+We build the image
+docker build -t rag-app .
+
+I have too much unecessary packages in requirements.txt (don't know where they came from despite me using a venv)
+I will be doing the installation of the differnt packages directly in the docker script
+
