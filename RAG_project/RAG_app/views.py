@@ -57,6 +57,7 @@ def handle_question_streaming(request):
             return JsonResponse({'error': 'Please provide a question'}, status=400)
 
         def stream_response():
+            start_time = time.perf_counter()
             try:
                 for chunk in ollama.chat(
                     model=MODEL_OLLAMA,
@@ -68,6 +69,9 @@ def handle_question_streaming(request):
             except Exception as e:
                 yield f"\n[Error]: {str(e)}"
 
+            end_time = time.perf_counter()
+            total_time = end_time - start_time
+            yield f"\n\n[TimeTaken]: {total_time:.2f} seconds"
         return StreamingHttpResponse(stream_response(), content_type='text/plain')
 
     return JsonResponse({'error': 'Invalid request method'}, status=405)
