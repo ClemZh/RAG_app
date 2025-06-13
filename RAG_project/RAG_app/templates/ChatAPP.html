@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Q&A</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center">Retrieval-Augmented Generation</h1>
+
+        <form id="qa-form" enctype="multipart/form-data">
+
+            <div class="mb-3">
+                <label for="question" class="form-label">Enter Your Question</label>
+                <input class="form-control" type="text" id="question" name="question" placeholder="Ask your question...">
+            </div>
+
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="streaming-toggle">
+                <label class="form-check-label" for="streaming-toggle">
+                    Activer le streaming
+                </label>
+            </div>
+
+            <button type="button" class="btn btn-primary" id="ask-button" onclick="askQuestion()">Ask</button>
+
+        </form>
+
+        <div class="mt-5" id="answer-section" style="display: none;">
+            <h3>Answer:</h3>
+            <p id="answer"></p>
+            <h3>Time taken:</h3>
+            <p id="time_taken"></p>
+        </div>
+
+    </div>
+    <script>
+        async function askQuestion() {
+            const form = document.getElementById('qa-form');
+            const formData = new FormData(form);
+            const streamingEnabled = document.getElementById('streaming-toggle').checked;
+
+            const endpoint = streamingEnabled ? '/ask_streaming/' : '/ask/';
+            /*GET Button to interact and change it*/
+            const button = document.getElementById('ask-button');
+
+            // Désactive le bouton et le rend gris
+            button.disabled = true;
+            button.classList.remove('btn-primary');
+            button.classList.add('btn-secondary');
+            button.innerText = 'Waiting...';
+
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                body: formData
+            });
+            
+
+            const answerEl = document.getElementById('answer');
+            const sectionEl = document.getElementById('answer-section');
+            sectionEl.style.display = 'block';
+            answerEl.innerText = '';
+            if (!response.ok) {
+                answerEl.innerText = 'Une erreur est survenue.';
+                return;
+            }
+            if (streamingEnabled) {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder("utf-8");
+                let fullText = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value, { stream: true });
+                    fullText += chunk;
+                    answerEl.innerText = fullText;
+                }
+            } else {
+                const result = await response.json();
+                answerEl.innerText = result.answer || 'No answer found.';
+                document.getElementById('time_taken').innerText = result.time_taken || '';
+            }
+            button.disabled = false;
+            button.classList.remove('btn-secondary');
+            button.classList.add('btn-primary');
+            button.innerText = 'Ask';
+        }
+    </script>
+
+</body>
+</html>

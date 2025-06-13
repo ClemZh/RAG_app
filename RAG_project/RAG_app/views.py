@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from langchain_community.vectorstores import FAISS
@@ -12,14 +12,22 @@ from langchain.chains import RetrievalQA
 
 import os
 import time
-import request
+import requests
+import logging
+import ollama
+
+
+MODEL_OLLAMA = "hf.co/MaziyarPanahi/Chocolatine-3B-Instruct-DPO-Revised-GGUF:Q4_K_M"
+EMBEDDING_MODEL_NAME = "all-minilm:l6-v2"
 
 # Serve the frontend template
 def index(request):
     return render(request, 'index.html')
 
+def ChatAPP(request):
+    return render(request, 'ChatAPP.html')
 
-def loading_and_embeddings(path_to_pdf):
+def loading_and_embeddings_pdf_doc(path_to_pdf):
     """
     Loads a PDF, splits it into chunks, and embeds using a local embedding model.
     """
@@ -34,18 +42,79 @@ def loading_and_embeddings(path_to_pdf):
     split_doc = splitter.split_documents(doc)
 
     # Embeddings (keep using SentenceTransformer or switch to Ollama if you have an embedding-capable model)
-    embeddings = OllamaEmbeddings(model="all-minilm:l6-v2")
+    start_time = time_measure()
+    embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL_NAME)
+    end_time = time_measure()
     vector_store = FAISS.from_documents(split_doc, embeddings)
 
-    return vector_store
+    return vector_store, end_time-start_time
+
+@csrf_exempt
+def handle_question_streaming(request):
+    if request.method == 'POST':
+        question = request.POST.get('question')
+        if not question:
+            return JsonResponse({'error': 'Please provide a question'}, status=400)
+
+        def stream_response():
+            try:
+                for chunk in ollama.chat(
+                    model=MODEL_OLLAMA,
+                    messages=[{"role": "user", "content": question}],
+                    stream=True
+                ):
+                    content = chunk.get('message', {}).get('content', '')
+                    yield content
+            except Exception as e:
+                yield f"\n[Error]: {str(e)}"
+
+        return StreamingHttpResponse(stream_response(), content_type='text/plain')
+
+    return JsonResponse({'error': 'Invalid request method'}, status=405)
+
 
 @csrf_exempt
 def handle_question(request):
+    """
+    """
     if request.method == 'POST':
         question = request.POST.get('question')
+    if not question:
+        return JsonResponse({'error': 'We couldn’t retrieve your question, please provide a question again'}, status=400)
+    try:
+        start_time = time.perf_counter()
+        chat_completion = ollama.chat(
+            model=MODEL_OLLAMA,
+            messages=[
+                {
+                    "role": "system",
+                    "content": question
+                }
+            ],
+            stream=False # Pas de streaming ici
+        )
 
-        if not question:
-            return JsonResponse({'error': 'We could\'t retrieve your question, please provide a question again'}, status=400)
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+
+        logging.debug("La question a bien été transmise au LLM par OLLAMA")
+
+        # Récupération du contenu
+        answer = chat_completion['message']['content']
+
+        return JsonResponse({
+            "answer": answer,
+            "time_taken": f"{total_time:.2f} seconds"
+         })
+
+    except Exception as e:
+        error_msg = f"Error in Ollama call: {str(e)}"
+        logging.error(error_msg)
+        return JsonResponse({'error': error_msg}, status=500)
+
+    return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+
         
 
 @csrf_exempt
@@ -65,23 +134,29 @@ def handle_question_with_pdf(request):
 
         try:
             # Load embeddings
-            vector_store = loading_and_embeddings(pdf_path)
+            vector_store, time_taken_for_embeddings = loading_and_embeddings_pdf_doc(pdf_path)
+            print(f"Time taken for embedding of the relevant document = {time_taken_for_embeddings:.2f} seconds")
 
             # QA with model from Ollama
             retriever = vector_store.as_retriever()
             qa_chain = RetrievalQA.from_chain_type(
-                llm=Ollama(model="hf.co/MaziyarPanahi/Chocolatine-3B-Instruct-DPO-Revised-GGUF:Q4_K_M"),
+                llm=Ollama(model=MODEL_OLLAMA),
                 retriever=retriever,
                 chain_type="stuff"
             )
-
+            start_time=time_measure()
             answer = qa_chain.run(question)
+            end_time = time_measure()
 
+            time_taken_for_inference = end_time-start_time
             # Print to terminal
             print(f"Question: {question}")
             print(f"Answer: {answer}")
-
-            return JsonResponse({"answer": answer})
+            print(f"Time:{time_taken}")
+            return JsonResponse({
+                "answer": answer,
+                "time_taken": f"{time_taken_for_inference:.2f} seconds"
+            })
 
         finally:
             # Always clean up the file
@@ -92,14 +167,20 @@ def handle_question_with_pdf(request):
 
 
 #On va créer une fonction qui va mesurer le temps pris pour générer une réponse
-def time_measure(){
+def time_measure():
     return time.perf_counter()
-}
 
 
 #Embedding de manière natif ollama
 def embedding_ollama(query):
-    data = {'model':f'{EMBEDDING_MODEL_NAME}','prompt': query}
+    header = {
+        "Content-Type": "application/json",
+    }
+    data = {
+        'model':EMBEDDING_MODEL_NAME,
+        'prompt': query
+    }
     response = request.post(
-
-    ) 
+        'http://localhost:11434/api/embeddings',headers=headers, json=data
+    )
+    return json.loads(response.text)
