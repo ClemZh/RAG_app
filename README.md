@@ -9,6 +9,7 @@ pip install langchain
 pip install sentence-transformers
 pip install faiss-cpu
 pip install pypdf
+pip install langchain-community
 ```
 
 2. Run the app
