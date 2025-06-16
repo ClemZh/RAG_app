@@ -17,13 +17,10 @@ import logging
 import ollama
 
 
-MODEL_OLLAMA = "hf.co/MaziyarPanahi/Chocolatine-3B-Instruct-DPO-Revised-GGUF:Q4_K_M"
+#MODEL_OLLAMA = "hf.co/MaziyarPanahi/Chocolatine-3B-Instruct-DPO-Revised-GGUF:Q4_K_M"
 EMBEDDING_MODEL_NAME = "all-minilm:l6-v2"
 
 # Serve the frontend template
-def index(request):
-    return render(request, 'index.html')
-
 def ChatAPP(request):
     return render(request, 'ChatAPP.html')
 
@@ -53,6 +50,10 @@ def loading_and_embeddings_pdf_doc(path_to_pdf):
 def handle_question_streaming(request):
     if request.method == 'POST':
         question = request.POST.get('question')
+        model= request.POST.get('model-select')
+        #print("azeopjazfpojapzjfvpojazfg\n",model)
+
+
         if not question:
             return JsonResponse({'error': 'Please provide a question'}, status=400)
 
@@ -60,7 +61,7 @@ def handle_question_streaming(request):
             start_time = time.perf_counter()
             try:
                 for chunk in ollama.chat(
-                    model=MODEL_OLLAMA,
+                    model=model,
                     messages=[{"role": "user", "content": question}],
                     stream=True
                 ):
@@ -83,12 +84,15 @@ def handle_question(request):
     """
     if request.method == 'POST':
         question = request.POST.get('question')
+        model= request.POST.get('model-select')
+        #print("azeopjazfpojapzjfvpojazfg\n",model)
+
     if not question:
         return JsonResponse({'error': 'We couldn’t retrieve your question, please provide a question again'}, status=400)
     try:
         start_time = time.perf_counter()
         chat_completion = ollama.chat(
-            model=MODEL_OLLAMA,
+            model=model,
             messages=[
                 {
                     "role": "system",
@@ -127,6 +131,8 @@ def handle_question_with_pdf(request):
         # Get the uploaded file and question
         pdf_file = request.FILES.get('pdf')
         question = request.POST.get('question')
+        model= request.POST.get('model-select')
+        #print("azeopjazfpojapzjfvpojazfg\n",model)
 
         if not pdf_file or not question:
             return JsonResponse({'error': 'Please provide both a PDF and a question'}, status=400)
@@ -144,7 +150,7 @@ def handle_question_with_pdf(request):
             # QA with model from Ollama
             retriever = vector_store.as_retriever()
             qa_chain = RetrievalQA.from_chain_type(
-                llm=Ollama(model=MODEL_OLLAMA),
+                llm=Ollama(model=model),
                 retriever=retriever,
                 chain_type="stuff"
             )
@@ -156,7 +162,7 @@ def handle_question_with_pdf(request):
             # Print to terminal
             print(f"Question: {question}")
             print(f"Answer: {answer}")
-            print(f"Time:{time_taken}")
+            print(f"Time:{time_taken_for_inference}")
             return JsonResponse({
                 "answer": answer,
                 "time_taken": f"{time_taken_for_inference:.2f} seconds"

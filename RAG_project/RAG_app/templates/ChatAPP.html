@@ -3,105 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Q&A</title>
+    <title>RAG Q&A</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
-    <div class="container mt-5">
-        <h1 class="text-center">Retrieval-Augmented Generation</h1>
+<div class="container mt-5">
+    <h1 class="text-center">Retrieval-Augmented Generation</h1>
 
-        <form id="qa-form" enctype="multipart/form-data">
-            <div class="mb-3">
-                <label for="question" class="form-label">Enter Your Question</label>
-                <input class="form-control" type="text" id="question" name="question" placeholder="Ask your question...">
-            </div>
-
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" id="streaming-toggle">
-                <label class="form-check-label" for="streaming-toggle">
-                    Activer le streaming
-                </label>
-            </div>
-
-            <button type="button" class="btn btn-primary" id="ask-button" onclick="askQuestion()">Ask</button>
-        </form>
-
-        <div class="mt-5" id="answer-section" style="display: none;">
-            <h3>Answer:</h3>
-            <p id="answer"></p>
-            <h3>Time taken:</h3>
-            <p id="time_taken"></p>
+    <form id="qa-form" enctype="multipart/form-data">
+        <div class="mb-3">
+            <label for="model-select" class="form-label">Choisir un modèle Ollama</label>
+            <select class="form-select" id="model-select" name="model-select">
+                <option selected disabled>Chargement des modèles...</option>
+            </select>
         </div>
+
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="use-pdf-toggle">
+            <label class="form-check-label" for="use-pdf-toggle">
+                Utiliser un document PDF
+            </label>
+        </div>
+
+        <div class="mb-3" id="pdf-upload-section" style="display: none;">
+            <label for="pdf-file" class="form-label">Téléverser un document PDF</label>
+            <input class="form-control" type="file" id="pdf-file" name="pdf">
+        </div>
+
+        <div class="mb-3">
+            <label for="question" class="form-label">Enter Your Question</label>
+            <input class="form-control" type="text" id="question" name="question" placeholder="Ask your question...">
+        </div>
+
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="streaming-toggle">
+            <label class="form-check-label" for="streaming-toggle">
+                Activer le streaming
+            </label>
+        </div>
+
+        <button type="button" class="btn btn-primary" id="ask-button" onclick="askQuestion()">Ask</button>
+    </form>
+
+    <div class="mt-5" id="answer-section" style="display: none;">
+        <h3>Answer:</h3>
+        <p id="answer"></p>
+        <h3>Time taken:</h3>
+        <p id="time_taken"></p>
     </div>
+</div>
 
-    <script>
-        async function askQuestion() {
-            const form = document.getElementById('qa-form');
-            const formData = new FormData(form);
-            const streamingEnabled = document.getElementById('streaming-toggle').checked;
-            const endpoint = streamingEnabled ? '/ask_streaming/' : '/ask/';
-            const button = document.getElementById('ask-button');
+<script>
+    document.getElementById('use-pdf-toggle').addEventListener('change', function () {
+        const pdfSection = document.getElementById('pdf-upload-section');
+        pdfSection.style.display = this.checked ? 'block' : 'none';
+    });
 
-            // Disable button and change style
-            button.disabled = true;
-            button.classList.remove('btn-primary');
-            button.classList.add('btn-secondary');
-            button.innerText = 'Waiting...';
+    async function askQuestion() {
+        const form = document.getElementById('qa-form');
+        const formData = new FormData(form);
+        const usePdf = document.getElementById('use-pdf-toggle').checked;
+        const streamingEnabled = document.getElementById('streaming-toggle').checked;
+        const endpoint = usePdf ? '/ask_pdf/' : (streamingEnabled ? '/ask_streaming/' : '/ask/');
+        const button = document.getElementById('ask-button');
 
-            const answerEl = document.getElementById('answer');
-            const timeEl = document.getElementById('time_taken');
-            const sectionEl = document.getElementById('answer-section');
-            sectionEl.style.display = 'block';
-            answerEl.innerText = '';
-            timeEl.innerText = '';
+        button.disabled = true;
+        button.classList.remove('btn-primary');
+        button.classList.add('btn-secondary');
+        button.innerText = 'Waiting...';
 
-            try {
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    body: formData
-                });
+        const answerEl = document.getElementById('answer');
+        const timeEl = document.getElementById('time_taken');
+        const sectionEl = document.getElementById('answer-section');
+        sectionEl.style.display = 'block';
+        answerEl.innerText = '';
+        timeEl.innerText = '';
 
-                if (!response.ok) {
-                    answerEl.innerText = 'Une erreur est survenue.';
-                    return;
-                }
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                body: formData
+            });
 
-                if (streamingEnabled) {
-                    const reader = response.body.getReader();
-                    const decoder = new TextDecoder("utf-8");
-                    let fullText = '';
-
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-
-                        const chunk = decoder.decode(value, { stream: true });
-                        fullText += chunk;
-
-                        // Detect time info
-                        if (fullText.includes('[TimeTaken]:')) {
-                            const [text, timeChunk] = fullText.split('[TimeTaken]:');
-                            answerEl.innerText = text.trim();
-                            timeEl.innerText = timeChunk.trim();
-                        } else {
-                            answerEl.innerText = fullText;
-                        }
-                    }
-                } else {
-                    const result = await response.json();
-                    answerEl.innerText = result.answer || 'No answer found.';
-                    timeEl.innerText = result.time_taken || '';
-                }
-            } catch (error) {
-                answerEl.innerText = 'Erreur lors de la requête.';
-            } finally {
-                // Re-enable button
-                button.disabled = false;
-                button.classList.remove('btn-secondary');
-                button.classList.add('btn-primary');
-                button.innerText = 'Ask';
+            if (!response.ok) {
+                answerEl.innerText = 'Une erreur est survenue.';
+                return;
             }
+
+            if (!usePdf && streamingEnabled) {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder("utf-8");
+                let fullText = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    fullText += chunk;
+
+                    if (fullText.includes('[TimeTaken]:')) {
+                        const [text, timeChunk] = fullText.split('[TimeTaken]:');
+                        answerEl.innerText = text.trim();
+                        timeEl.innerText = timeChunk.trim();
+                    } else {
+                        answerEl.innerText = fullText;
+                    }
+                }
+            } else {
+                const result = await response.json();
+                answerEl.innerText = result.answer || 'No answer found.';
+                timeEl.innerText = result.time_taken || '';
+            }
+        } catch (error) {
+            answerEl.innerText = 'Erreur lors de la requête.';
+        } finally {
+            button.disabled = false;
+            button.classList.remove('btn-secondary');
+            button.classList.add('btn-primary');
+            button.innerText = 'Ask';
         }
-    </script>
+    }
+
+    async function loadModels() {
+        const res = await fetch('/get_available_models/');
+        const data = await res.json();
+        const select = document.getElementById('model-select');
+        select.innerHTML = '';
+        data.models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model;
+            option.textContent = model;
+            select.appendChild(option);
+        });
+    }
+
+    window.onload = loadModels;
+</script>
 </body>
 </html>
