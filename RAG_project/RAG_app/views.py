@@ -53,12 +53,13 @@ def handle_question_streaming(request):
         model= request.POST.get('model-select')
         #print("azeopjazfpojapzjfvpojazfg\n",model)
 
-
         if not question:
             return JsonResponse({'error': 'Please provide a question'}, status=400)
 
         def stream_response():
             start_time = time.perf_counter()
+            #On créer une variable pour compter le nombre de token car c'est en streaming
+            token_count = 0
             try:
                 for chunk in ollama.chat(
                     model=model,
@@ -66,13 +67,16 @@ def handle_question_streaming(request):
                     stream=True
                 ):
                     content = chunk.get('message', {}).get('content', '')
+                    token_count +=1
                     yield content
             except Exception as e:
                 yield f"\n[Error]: {str(e)}"
 
             end_time = time.perf_counter()
             total_time = end_time - start_time
-            yield f"\n\n[TimeTaken]: {total_time:.2f} seconds"
+            yield f"\n\n[TimeTaken]: {total_time:.2f} secondes"
+            yield f"\n\n[TokenSec]: {token_count/total_time:.2f} tokens par seconde"
+            yield f"\n\n[NbToken]: {token_count} tokens"
         return StreamingHttpResponse(stream_response(), content_type='text/plain')
 
     return JsonResponse({'error': 'Invalid request method'}, status=405)
@@ -109,11 +113,17 @@ def handle_question(request):
 
         # Récupération du contenu
         answer = chat_completion['message']['content']
-
-        return JsonResponse({
+        print("\n\n Token generer\n",chat_completion['eval_count'])
+        # Troubleshooting "erreur lors de la requêtte"
+        print(f"Answer: {answer}")
+        response = JsonResponse({
             "answer": answer,
-            "time_taken": f"{total_time:.2f} seconds"
-         })
+            "time_taken": f"{total_time:.2f} seconds",
+            "token_per_sec": f"{chat_completion['eval_count']/total_time:.2f}",
+            "nombre_token": f"{chat_completion['eval_count']}"
+        })
+        print(response)
+        return response
 
     except Exception as e:
         error_msg = f"Error in Ollama call: {str(e)}"
@@ -163,10 +173,14 @@ def handle_question_with_pdf(request):
             print(f"Question: {question}")
             print(f"Answer: {answer}")
             print(f"Time:{time_taken_for_inference}")
-            return JsonResponse({
+            response = JsonResponse({
                 "answer": answer,
-                "time_taken": f"{time_taken_for_inference:.2f} seconds"
+                "time_taken": f"{time_taken_for_inference:.2f} seconds",
+                "token_per_sec": f"{chat_completion['eval_count']/total_time:.2f}",
+                "nombre_token": f"{chat_completion['eval_count']}"
             })
+            print(response)
+            return response
 
         finally:
             # Always clean up the file

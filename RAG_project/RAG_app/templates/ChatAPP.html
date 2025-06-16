@@ -50,6 +50,10 @@
         <p id="answer"></p>
         <h3>Time taken:</h3>
         <p id="time_taken"></p>
+        <h3>Token/sec:</h3>
+        <p id="token_per_sec"></p>
+        <h3>Nombre token:</h3>
+        <p id="nombre_token"></p>
     </div>
 </div>
 
@@ -74,10 +78,14 @@
 
         const answerEl = document.getElementById('answer');
         const timeEl = document.getElementById('time_taken');
+        const tokenSecEl = document.getElementById('token_per_sec');
+        const tokenEl = document.getElementById('nombre_token');
         const sectionEl = document.getElementById('answer-section');
         sectionEl.style.display = 'block';
         answerEl.innerText = '';
         timeEl.innerText = '';
+        tokenEl.innerText = '';
+        tokenSecEl.innerText = '';
 
         try {
             const response = await fetch(endpoint, {
@@ -103,17 +111,26 @@
                     fullText += chunk;
 
                     if (fullText.includes('[TimeTaken]:')) {
-                        const [text, timeChunk] = fullText.split('[TimeTaken]:');
-                        answerEl.innerText = text.trim();
-                        timeEl.innerText = timeChunk.trim();
+                        const [textPart] = fullText.split('[TimeTaken]:');
+                        const timeMatch = fullText.match(/\[TimeTaken\]:(.*?)\s*(\[|$)/);
+                        const tokenSecMatch = fullText.match(/\[TokenSec\]:(.*?)\s*(\[|$)/);
+                        const tokenMatch = fullText.match(/\[NbToken\]:(.*?)\s*(\[|$)/);
+
+                        answerEl.innerText = textPart.trim();
+                        timeEl.innerText = timeMatch ? timeMatch[1].trim() : '';
+                        tokenSecEl.innerText = tokenSecMatch ? tokenSecMatch[1].trim() : '';
+                        tokenEl.innerText = tokenMatch ? tokenMatch[1].trim() : '';
                     } else {
                         answerEl.innerText = fullText;
                     }
                 }
             } else {
                 const result = await response.json();
+
                 answerEl.innerText = result.answer || 'No answer found.';
                 timeEl.innerText = result.time_taken || '';
+                // tokenSecEl.innerText = result.token_per_sec || '';
+                // tokenEl.innerText = result.nombre_token || '';
             }
         } catch (error) {
             answerEl.innerText = 'Erreur lors de la requête.';
